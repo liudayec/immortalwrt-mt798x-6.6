@@ -69,6 +69,13 @@ jobs:
           CONFIG_KERNEL_VETH=y
           CONFIG_KERNEL_OVERLAY_FS=y
           CONFIG_KERNEL_TUN=y
+          CONFIG_PACKAGE_luci-app-turboacc=y
+          CONFIG_PACKAGE_luci-app-wrtbwmon=y
+          CONFIG_PACKAGE_luci-app-eqos=y
+          CONFIG_PACKAGE_luci-app-upnp=y
+          CONFIG_PACKAGE_luci-app-wol=y
+          CONFIG_PACKAGE_luci-theme-argon=y
+          CONFIG_PACKAGE_luci-app-argon-config=y
           CFGEOF
           make defconfig
           echo '--- check ---'
