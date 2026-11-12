@@ -18,7 +18,7 @@ jobs:
       - name: clone-dailook-source
         working-directory: .
         run: |
-          git clone --depth 1 -b main https://github.com/dailook/immortalwrt-24.10.git src
+          git clone --depth 1 -b openwrt-24.10 https://github.com/dailook/immortalwrt-24.10.git src
           ls src | head
           grep -c "ikuai_q6000-emmc" src/target/linux/mediatek/image/filogic.mk || true
 
