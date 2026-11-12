@@ -69,7 +69,9 @@ jobs:
           CONFIG_KERNEL_VETH=y
           CONFIG_KERNEL_OVERLAY_FS=y
           CONFIG_KERNEL_TUN=y
-          CONFIG_PACKAGE_luci-app-turboacc=y
+          CONFIG_PACKAGE_kmod-nft-offload=y
+          CONFIG_PACKAGE_kmod-nf-flow=y
+          CONFIG_PACKAGE_luci-app-firewall=y
           CONFIG_PACKAGE_luci-app-wrtbwmon=y
           CONFIG_PACKAGE_luci-app-eqos=y
           CONFIG_PACKAGE_luci-app-upnp=y
