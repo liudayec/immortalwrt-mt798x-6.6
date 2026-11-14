@@ -32,6 +32,8 @@ jobs:
         run: |
           echo 'src-git openclash https://github.com/vernesong/OpenClash.git;master' >> feeds.conf.default
           echo 'src-git lucky https://github.com/gdy666/luci-app-lucky.git;main' >> feeds.conf.default
+          echo 'src-git kenzok8 https://github.com/kenzok8/openwrt-packages.git;master' >> feeds.conf.default
+          cat feeds.conf.default
 
       - name: dts-downclock
         run: |
@@ -55,6 +57,11 @@ jobs:
           CONFIG_TARGET_mediatek_filogic=y
           CONFIG_TARGET_mediatek_filogic_DEVICE_ikuai_q6000-emmc=y
           CONFIG_TARGET_ROOTFS_PARTSIZE=1024
+          CONFIG_KERNEL_BPF_SYSCALL=y
+          CONFIG_KERNEL_CGROUP_BPF=y
+          CONFIG_KERNEL_VETH=y
+          CONFIG_KERNEL_OVERLAY_FS=y
+          CONFIG_KERNEL_TUN=y
           CONFIG_PACKAGE_luci=y
           CONFIG_PACKAGE_luci-compat=y
           CONFIG_PACKAGE_luci-i18n-base-zh-cn=y
@@ -64,16 +71,17 @@ jobs:
           CONFIG_PACKAGE_luci-app-dockerman=y
           CONFIG_PACKAGE_luci-app-zerotier=y
           CONFIG_PACKAGE_zerotier=y
-          CONFIG_PACKAGE_luci-app-oaf=y
+          CONFIG_PACKAGE_luci-app-quickstart=y
+          CONFIG_PACKAGE_quickstart=y
+          CONFIG_PACKAGE_luci-lib-taskd=y
+          CONFIG_PACKAGE_luci-app-netwizard=y
+          CONFIG_PACKAGE_luci-app-nlbwmon=y
           CONFIG_PACKAGE_luci-app-openclash=y
           CONFIG_PACKAGE_luci-app-lucky=y
-          CONFIG_PACKAGE_luci-app-quickstart=y
           CONFIG_PACKAGE_luci-app-ttyd=y
           CONFIG_PACKAGE_luci-app-ksmbd=y
           CONFIG_PACKAGE_ksmbd-server=y
-          CONFIG_PACKAGE_luci-app-netspeedtest=y
           CONFIG_PACKAGE_luci-app-ddns=y
-          CONFIG_PACKAGE_luci-app-wrtbwmon=y
           CONFIG_PACKAGE_luci-app-eqos=y
           CONFIG_PACKAGE_luci-app-upnp=y
           CONFIG_PACKAGE_luci-app-wol=y
@@ -81,11 +89,6 @@ jobs:
           CONFIG_PACKAGE_luci-app-argon-config=y
           CONFIG_PACKAGE_kmod-nft-offload=y
           CONFIG_PACKAGE_kmod-nf-flow=y
-          CONFIG_KERNEL_BPF_SYSCALL=y
-          CONFIG_KERNEL_CGROUP_BPF=y
-          CONFIG_KERNEL_VETH=y
-          CONFIG_KERNEL_OVERLAY_FS=y
-          CONFIG_KERNEL_TUN=y
           CFGEOF
           make defconfig
           echo '--- check ---'
