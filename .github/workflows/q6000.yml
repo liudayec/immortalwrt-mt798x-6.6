@@ -33,6 +33,7 @@ jobs:
           echo 'src-git openclash https://github.com/vernesong/OpenClash.git;master' >> feeds.conf.default
           echo 'src-git lucky https://github.com/gdy666/luci-app-lucky.git;main' >> feeds.conf.default
           echo 'src-git kenzok8 https://github.com/kenzok8/openwrt-packages.git;master' >> feeds.conf.default
+          echo 'src-git openappfilter https://github.com/destan19/OpenAppFilter.git;master' >> feeds.conf.default
           cat feeds.conf.default
 
       - name: dts-downclock
@@ -87,6 +88,10 @@ jobs:
           CONFIG_PACKAGE_luci-app-wol=y
           CONFIG_PACKAGE_luci-theme-argon=y
           CONFIG_PACKAGE_luci-app-argon-config=y
+          CONFIG_PACKAGE_luci-app-oaf=y
+          CONFIG_PACKAGE_appfilter=y
+          CONFIG_PACKAGE_kmod-oaf=y
+          CONFIG_PACKAGE_luci-lib-jsonc=y
           CONFIG_PACKAGE_kmod-nft-offload=y
           CONFIG_PACKAGE_kmod-nf-flow=y
           CFGEOF
