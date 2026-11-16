@@ -90,7 +90,6 @@ jobs:
           CONFIG_PACKAGE_luci-app-quickstart=y
           CONFIG_PACKAGE_quickstart=y
           CONFIG_PACKAGE_luci-lib-taskd=y
-          CONFIG_PACKAGE_luci-app-netwizard=y
           CONFIG_PACKAGE_luci-app-nlbwmon=y
           CONFIG_PACKAGE_luci-app-openclash=y
           CONFIG_PACKAGE_luci-app-lucky=y
