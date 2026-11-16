@@ -48,13 +48,17 @@ jobs:
 
       - name: inject-files
         run: |
+          WF="${{ github.workspace }}"
+          echo "workspace=$WF  pwd=$(pwd)"
+          ls -l "$WF/q6000-files/" || true
           # eeprom：上游 openwrt 删掉了这个文件，没有它 mt76 探测 WiFi 会失败
           mkdir -p files/lib/firmware/mediatek
-          cp q6000-files/mt7986_eeprom_mt7976_dual.bin files/lib/firmware/mediatek/mt7986_eeprom_mt7976_dual.bin
+          cp "$WF/q6000-files/mt7986_eeprom_mt7976_dual.bin" files/lib/firmware/mediatek/
           ls -l files/lib/firmware/mediatek/
           # 默认无线配置：双频自动启用 + 30dBm
           mkdir -p files/etc/config
-          cp q6000-files/wireless files/etc/config/wireless
+          cp "$WF/q6000-files/wireless" files/etc/config/wireless
+          echo "--- wireless ---"
           cat files/etc/config/wireless
 
       - name: feeds
