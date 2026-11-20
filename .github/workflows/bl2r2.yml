@@ -1,0 +1,89 @@
+name: bl2-rank1b
+on:
+  push:
+    paths:
+      - '.github/workflows/bl2r2.yml'
+  workflow_dispatch:
+
+jobs:
+  b:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu device-tree-compiler bc bison flex python3
+          aarch64-linux-gnu-gcc --version | head -1
+
+      - name: clone-atf
+        run: |
+          git clone --depth 1 -b mtksoc https://github.com/mtk-openwrt/arm-trusted-firmware.git atf
+          cd atf && git log --oneline -1
+
+      - name: patch-both-dram-libs
+        run: |
+          python3 - <<'PYEOF'
+          import sys, os
+
+          # 特征序列: tst w0,#0x30000 ; cset w0,ne ; add w0,w0,#1 ; ret
+          SIG = bytes.fromhex("1f041072e0079f1a00040011c0035fd6")
+          ORIG = bytes.fromhex("e0079f1a")   # cset w0, ne
+          NEW  = bytes.fromhex("00008052")   # mov  w0, #0
+
+          base = "atf/plat/mediatek/mt7986/drivers/dram/release"
+          for fname in ("dram.a", "dram-debug.a"):
+              p = os.path.join(base, fname)
+              if not os.path.exists(p):
+                  print("skip %s (not found)" % fname); continue
+              d = bytearray(open(p, "rb").read())
+              hits = []
+              i = d.find(SIG)
+              while i >= 0:
+                  hits.append(i); i = d.find(SIG, i+1)
+              print("\n%s: %d bytes, 特征命中 %d 处: %s" % (fname, len(d), len(hits), [hex(x) for x in hits]))
+              if len(hits) != 1:
+                  print("  警告：命中数不是 1，跳过该文件")
+                  continue
+              off = hits[0] + 4    # cset 在特征序列的第 4 字节开始
+              assert d[off:off+4] == ORIG, "字节不符: %s" % d[off:off+4].hex()
+              d[off:off+4] = NEW
+              open(p, "wb").write(d)
+              print("  patched @0x%x : e0079f1a -> 00008052" % off)
+          print("\n=== 验证 ===")
+          for fname in ("dram.a", "dram-debug.a"):
+              p = os.path.join(base, fname)
+              if not os.path.exists(p): continue
+              d = open(p,"rb").read()
+              i = d.find(SIG[:8] + NEW + SIG[12:])
+              print("  %s -> 新特征 %s" % (fname, "找到" if i>=0 else "未找到"))
+          PYEOF
+
+      - name: build
+        run: |
+          cd atf
+          make -j$(nproc) \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            PLAT=mt7986 \
+            BOOT_DEVICE=emmc \
+            DRAM_USE_DDR4=1 \
+            DDR4_FREQ_2666=1 \
+            DRAM_DEBUG_LOG=1 \
+            all
+          ls -la build/mt7986/release/ || true
+
+      - name: collect
+        run: |
+          mkdir -p out
+          cp atf/build/mt7986/release/bl2.img out/bl2_rank1b.img 2>/dev/null || true
+          cp atf/build/mt7986/release/bl2.bin out/bl2_rank1b.raw 2>/dev/null || true
+          ls -la out/
+          for f in out/*; do echo "$f = $(stat -c%s $f) md5=$(md5sum $f|cut -d' ' -f1)"; done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bl2r2
+          path: out/*
+          retention-days: 30
