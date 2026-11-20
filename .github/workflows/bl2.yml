@@ -1,0 +1,57 @@
+name: bl2-2gb
+on:
+  push:
+    paths:
+      - '.github/workflows/bl2.yml'
+  workflow_dispatch:
+
+jobs:
+  b:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu device-tree-compiler bc bison flex python3-pip
+          pip3 install --user pyelftools
+          aarch64-linux-gnu-gcc --version | head -1
+
+      - name: clone-atf
+        run: |
+          git clone --depth 1 -b mtksoc https://github.com/mtk-openwrt/arm-trusted-firmware.git atf
+          cd atf && git log --oneline -1
+
+      - name: build-bl2-ddr4-2666-2gb
+        run: |
+          cd atf
+          make -j$(nproc) \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            PLAT=mt7986 \
+            BOOT_DEVICE=emmc \
+            DRAM_USE_DDR4=1 \
+            DDR4_FREQ_2666=1 \
+            DRAM_DEBUG_LOG=1 \
+            all
+        continue-on-error: false
+
+      - name: inspect
+        run: |
+          ls -la atf/build/mt7986/release/ || true
+          find atf/build -name "bl2*" -o -name "*.img" 2>/dev/null | head -20
+
+      - name: collect
+        run: |
+          mkdir -p out
+          cp atf/build/mt7986/release/bl2.img out/ 2>/dev/null || \
+          cp atf/build/mt7986/release/bl2.bin out/ 2>/dev/null || true
+          ls -la out/
+          for f in out/*; do echo "$f: $(stat -c%s $f) bytes"; done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bl2
+          path: out/*
+          retention-days: 30
