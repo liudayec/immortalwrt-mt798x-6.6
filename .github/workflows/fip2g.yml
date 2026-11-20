@@ -1,0 +1,77 @@
+name: fip-2gb
+on:
+  push:
+    paths:
+      - '.github/workflows/fip2g.yml'
+  workflow_dispatch:
+
+jobs:
+  b:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu device-tree-compiler bc bison flex python3 python3-setuptools swig libssl-dev uuid-dev
+          aarch64-linux-gnu-gcc --version | head -1
+
+      - name: clone-bl-mt798x
+        run: |
+          git clone --depth 1 https://github.com/hanwckf/bl-mt798x.git bl
+          cd bl && git log --oneline -1 && ls
+
+      - name: patch-dram-init
+        run: |
+          F=bl/uboot-mtk-20250711/board/mediatek/mt7986/mt7986_rfb.c
+          printf '%s\n' '' '' '/* Q6000_2GB_OVERRIDE */' 'int dram_init(void)' '{' '	gd->ram_base = 0x40000000UL;' '	gd->ram_size = SZ_2G;' '	return 0;' '}' >> "$F"
+          echo "=== 验证 ==="
+          tail -12 "$F"
+          grep -n "Q6000_2GB_OVERRIDE" "$F"
+
+      - name: build-uboot
+        run: |
+          set -e
+          U=bl/uboot-mtk-20250711
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          echo "=== 7986 defconfig ==="
+          ls "$U/configs" | grep -i 7986 || true
+          CFG=$(ls "$U/configs" | grep -i "mt7986" | grep -i "rfb" | head -1)
+          echo "使用: $CFG"
+          cp "$U/configs/$CFG" "$U/.config"
+          make -C "$U" olddefconfig
+          make -C "$U" clean
+          make -C "$U" -j$(nproc) all
+          ls -la "$U/u-boot.bin"
+
+      - name: build-atf-fip
+        run: |
+          set -e
+          A=bl/atf-20250711
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          if [ -e "$A/makefile" ]; then MK=makefile; else MK=Makefile; fi
+          make -C "$A" -f "$MK" clean CONFIG_CROSS_COMPILER=aarch64-linux-gnu- CROSS_COMPILER=aarch64-linux-gnu- || true
+          rm -rf "$A/build"
+          make -C "$A" -f "$MK" mt7986_jdcloud_re-cp-03_defconfig \
+            CONFIG_CROSS_COMPILER=aarch64-linux-gnu- CROSS_COMPILER=aarch64-linux-gnu-
+          make -C "$A" -f "$MK" all \
+            CONFIG_CROSS_COMPILER=aarch64-linux-gnu- CROSS_COMPILER=aarch64-linux-gnu- \
+            CONFIG_BL33="$PWD/bl/uboot-mtk-20250711/u-boot.bin" \
+            BL33="$PWD/bl/uboot-mtk-20250711/u-boot.bin" -j$(nproc)
+          ls -la "$A/build/mt7986/release/" || true
+
+      - name: collect
+        run: |
+          mkdir -p out
+          cp bl/atf-20250711/build/mt7986/release/fip.bin out/fip_2g.bin 2>/dev/null || true
+          cp bl/atf-20250711/build/mt7986/release/bl2.img out/bl2_2g.img 2>/dev/null || true
+          ls -la out/
+          for f in out/*; do echo "$f = $(stat -c%s $f) md5=$(md5sum $f|cut -d' ' -f1)"; done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fip2g
+          path: out/*
+          retention-days: 30
