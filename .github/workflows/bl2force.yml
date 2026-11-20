@@ -1,0 +1,75 @@
+name: bl2-2gb-forced
+on:
+  push:
+    paths:
+      - '.github/workflows/bl2force.yml'
+  workflow_dispatch:
+
+jobs:
+  b:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu device-tree-compiler bc bison flex python3
+          aarch64-linux-gnu-gcc --version | head -1
+
+      - name: clone-atf
+        run: |
+          git clone --depth 1 -b mtksoc https://github.com/mtk-openwrt/arm-trusted-firmware.git atf
+          cd atf && git log --oneline -1
+
+      - name: patch-dram-size-2048
+        run: |
+          python3 - <<'PYEOF'
+          import sys
+          p = "atf/plat/mediatek/mt7986/drivers/dram/release/dram.a"
+          d = bytearray(open(p,"rb").read())
+          OLD = bytes.fromhex("a0fe50d3")   # lsr x0, x21, #0x10
+          NEW = bytes.fromhex("00008152")   # mov w0, #0x800   (2048 MB)
+          hits = []
+          i = d.find(OLD)
+          while i >= 0:
+              hits.append(i); i = d.find(OLD, i+1)
+          print("dram.a: %d bytes, lsr 命中 %d 处: %s" % (len(d), len(hits), [hex(x) for x in hits]))
+          if len(hits) != 1:
+              sys.exit("命中数不为 1，中止")
+          OFF = hits[0]
+          d[OFF:OFF+4] = NEW
+          open(p,"wb").write(d)
+          print("patched @0x%x : a0fe50d3 -> 00008152  (lsr -> mov w0,#0x800)" % OFF)
+          # 验证
+          d2 = open(p,"rb").read()
+          print("新字节: %s" % d2[OFF:OFF+4].hex())
+          print("OLD 残留: %d" % d2.count(OLD))
+          PYEOF
+
+      - name: build-no-debug-log
+        run: |
+          cd atf
+          # 关键：不设 DRAM_DEBUG_LOG → 链接 dram.a（已 patch）而不是 dram-debug.a
+          make -j$(nproc) \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            PLAT=mt7986 \
+            BOOT_DEVICE=emmc \
+            DRAM_USE_DDR4=1 \
+            DDR4_FREQ_2666=1 \
+            all
+          ls -la build/mt7986/release/ || true
+
+      - name: collect
+        run: |
+          mkdir -p out
+          cp atf/build/mt7986/release/bl2.img out/bl2_2g.img 2>/dev/null || true
+          cp atf/build/mt7986/release/bl2.bin out/bl2_2g.raw 2>/dev/null || true
+          for f in out/*; do echo "$f = $(stat -c%s $f) md5=$(md5sum $f|cut -d' ' -f1)"; done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bl22g
+          path: out/*
+          retention-days: 30
