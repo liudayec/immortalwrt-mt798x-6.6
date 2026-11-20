@@ -1,0 +1,79 @@
+name: bl2-r2f
+on:
+  push:
+    paths:
+      - '.github/workflows/bl2f.yml'
+  workflow_dispatch:
+
+jobs:
+  b:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu device-tree-compiler bc bison flex python3
+          aarch64-linux-gnu-gcc --version | head -1
+
+      - name: clone-atf
+        run: |
+          git clone --depth 1 -b mtksoc https://github.com/mtk-openwrt/arm-trusted-firmware.git atf
+          cd atf && git log --oneline -1
+
+      - name: patch-get_dram_rank_nr-return-2
+        run: |
+          python3 - <<'PYEOF'
+          import os
+          SIG = bytes.fromhex("1f041072" "e0079f1a" "00040011" "c0035fd6")
+          NEW = bytes.fromhex("20008052")     # mov w0, #1
+          base = "atf/plat/mediatek/mt7986/drivers/dram/release"
+          for fname in ("dram.a", "dram-debug.a"):
+              p = os.path.join(base, fname)
+              if not os.path.exists(p): print("skip", fname); continue
+              d = bytearray(open(p,"rb").read())
+              hits=[]; i=d.find(SIG)
+              while i>=0: hits.append(i); i=d.find(SIG,i+1)
+              print("%s: %d bytes, 命中 %d 处 %s" % (fname, len(d), len(hits), [hex(x) for x in hits]))
+              if len(hits)!=1: print("  跳过"); continue
+              o = hits[0]+4
+              d[o:o+4] = NEW
+              open(p,"wb").write(d)
+              print("  patched @0x%x -> 20008052 (mov w0,#1 => 返回 2)" % o)
+          # 验证
+          print("\n=== 验证 ===")
+          NSIG = bytes.fromhex("1f041072" "20008052" "00040011" "c0035fd6")
+          for fname in ("dram.a","dram-debug.a"):
+              p = os.path.join(base, fname)
+              if not os.path.exists(p): continue
+              d = open(p,"rb").read()
+              print("  %s: 新特征 %d 处" % (fname, d.count(NSIG)))
+          PYEOF
+
+      - name: build
+        run: |
+          cd atf
+          make -j$(nproc) \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            PLAT=mt7986 \
+            BOOT_DEVICE=emmc \
+            DRAM_USE_DDR4=1 \
+            DDR4_FREQ_2666=1 \
+            DRAM_DEBUG_LOG=1 \
+            all
+          ls -la build/mt7986/release/ || true
+
+      - name: collect
+        run: |
+          mkdir -p out
+          cp atf/build/mt7986/release/bl2.img out/bl2_r2f.img 2>/dev/null || true
+          cp atf/build/mt7986/release/bl2.bin out/bl2_r2f.raw 2>/dev/null || true
+          for f in out/*; do echo "$f = $(stat -c%s $f) md5=$(md5sum $f|cut -d' ' -f1)"; done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bl2f
+          path: out/*
+          retention-days: 30
