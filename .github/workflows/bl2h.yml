@@ -1,0 +1,54 @@
+name: bl2-hanwckf
+on:
+  push:
+    paths:
+      - '.github/workflows/bl2h.yml'
+  workflow_dispatch:
+
+jobs:
+  b:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu device-tree-compiler bc bison flex python3
+          aarch64-linux-gnu-gcc --version | head -1
+
+      - name: clone-bl-mt798x
+        run: |
+          git clone --depth 1 https://github.com/hanwckf/bl-mt798x.git bl
+          cd bl && git log --oneline -1
+          ls
+
+      - name: build-atf-20250711
+        run: |
+          cd bl/atf-20250711
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          make -f Makefile clean CONFIG_CROSS_COMPILER=aarch64-linux-gnu- CROSS_COMPILER=aarch64-linux-gnu- || true
+          rm -rf build
+          make -f Makefile mt7986_jdcloud_re-cp-03_defconfig CONFIG_CROSS_COMPILER=aarch64-linux-gnu- CROSS_COMPILER=aarch64-linux-gnu-
+          make -f Makefile all CONFIG_CROSS_COMPILER=aarch64-linux-gnu- CROSS_COMPILER=aarch64-linux-gnu- -j$(nproc) || \
+          make -f Makefile bl2 CONFIG_CROSS_COMPILER=aarch64-linux-gnu- CROSS_COMPILER=aarch64-linux-gnu- -j$(nproc)
+
+      - name: inspect
+        run: |
+          find bl/atf-20250711/build -name "bl2*" -o -name "*.img" 2>/dev/null | head
+          ls -la bl/atf-20250711/build/mt7986/release/ 2>/dev/null || true
+
+      - name: collect
+        run: |
+          mkdir -p out
+          cp bl/atf-20250711/build/mt7986/release/bl2.img out/bl2_50711.img 2>/dev/null || true
+          cp bl/atf-20250711/build/mt7986/release/bl2.bin out/bl2_50711.bin 2>/dev/null || true
+          ls -la out/
+          for f in out/*; do echo "$f = $(stat -c%s $f) bytes  md5=$(md5sum $f | cut -d' ' -f1)"; done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bl2h
+          path: out/*
+          retention-days: 30
