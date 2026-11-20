@@ -1,0 +1,85 @@
+name: bl2-srank
+on:
+  push:
+    paths:
+      - '.github/workflows/bl2s.yml'
+  workflow_dispatch:
+
+jobs:
+  b:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu device-tree-compiler bc bison flex python3
+          aarch64-linux-gnu-gcc --version | head -1
+
+      - name: clone-atf
+        run: |
+          git clone --depth 1 -b mtksoc https://github.com/mtk-openwrt/arm-trusted-firmware.git atf
+          cd atf && git log --oneline -1
+
+      - name: patch-support-rank-num-to-2
+        run: |
+          python3 - <<'PYEOF'
+          import os, struct, sys
+
+          # DramCtx_PCDDR 特征: ch_num=1, ch=0, support_rank_num=?, rank=0, freq_sel=22, shu=0, dram_type=4
+          SIG = bytes.fromhex("01000000" "00000000" "01000000" "00000000" "16000000" "00000000" "04000000")
+          base = "atf/plat/mediatek/mt7986/drivers/dram/release"
+
+          for fname in ("dram.a", "dram-debug.a"):
+              p = os.path.join(base, fname)
+              if not os.path.exists(p):
+                  print("skip %s" % fname); continue
+              d = bytearray(open(p, "rb").read())
+              hits = []
+              i = d.find(SIG)
+              while i >= 0:
+                  hits.append(i); i = d.find(SIG, i+1)
+              print("\n%s: %d bytes  特征命中 %d 处: %s" % (fname, len(d), len(hits), [hex(x) for x in hits]))
+              if len(hits) != 1:
+                  print("  命中数不为 1，跳过"); continue
+              o = hits[0] + 8          # support_rank_num 偏移
+              cur = struct.unpack_from("<I", d, o)[0]
+              print("  support_rank_num @0x%x = %d" % (o, cur))
+              if cur != 1:
+                  print("  不是 1，跳过"); continue
+              struct.pack_into("<I", d, o, 2)
+              open(p, "wb").write(d)
+              print("  -> 已改为 2")
+              # 验证
+              d2 = open(p,"rb").read()
+              print("  验证: %s" % bytes(d2[hits[0]:hits[0]+28]).hex())
+          PYEOF
+
+      - name: build
+        run: |
+          cd atf
+          make -j$(nproc) \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            PLAT=mt7986 \
+            BOOT_DEVICE=emmc \
+            DRAM_USE_DDR4=1 \
+            DDR4_FREQ_2666=1 \
+            DRAM_DEBUG_LOG=1 \
+            all
+          ls -la build/mt7986/release/ || true
+
+      - name: collect
+        run: |
+          mkdir -p out
+          cp atf/build/mt7986/release/bl2.img out/bl2_srank.img 2>/dev/null || true
+          cp atf/build/mt7986/release/bl2.bin out/bl2_srank.raw 2>/dev/null || true
+          ls -la out/
+          for f in out/*; do echo "$f = $(stat -c%s $f) md5=$(md5sum $f|cut -d' ' -f1)"; done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bl2s
+          path: out/*
+          retention-days: 30
