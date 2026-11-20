@@ -1,0 +1,50 @@
+name: bl2-baseline
+on:
+  push:
+    paths:
+      - '.github/workflows/bl2base.yml'
+  workflow_dispatch:
+
+jobs:
+  b:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu device-tree-compiler bc bison flex python3
+          aarch64-linux-gnu-gcc --version | head -1
+
+      - name: clone-atf
+        run: |
+          git clone --depth 1 -b mtksoc https://github.com/mtk-openwrt/arm-trusted-firmware.git atf
+          cd atf && git log --oneline -1
+
+      - name: build-baseline-default-freq
+        run: |
+          cd atf
+          # 不定义 DDR4_FREQ_*，不 patch 任何东西 —— 纯基线
+          make -j$(nproc) \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            PLAT=mt7986 \
+            BOOT_DEVICE=emmc \
+            DRAM_USE_DDR4=1 \
+            DRAM_DEBUG_LOG=1 \
+            all
+          ls -la build/mt7986/release/ || true
+
+      - name: collect
+        run: |
+          mkdir -p out
+          cp atf/build/mt7986/release/bl2.img out/bl2_base.img 2>/dev/null || true
+          cp atf/build/mt7986/release/bl2.bin out/bl2_base.raw 2>/dev/null || true
+          for f in out/*; do echo "$f = $(stat -c%s $f) md5=$(md5sum $f|cut -d' ' -f1)"; done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bl2base
+          path: out/*
+          retention-days: 30
