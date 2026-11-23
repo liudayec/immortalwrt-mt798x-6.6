@@ -58,6 +58,12 @@ jobs:
           # 默认无线配置：双频自动启用 + 30dBm
           mkdir -p files/etc/config
           cp "$WF/q6000-files/wireless" files/etc/config/wireless
+          # 首次启动脚本：root 密码 / 5G MAC / quickstart 无线菜单 / 语言主题
+          mkdir -p files/etc/uci-defaults
+          cp "$WF/q6000-files/uci-defaults/"* files/etc/uci-defaults/ 2>/dev/null || true
+          chmod +x files/etc/uci-defaults/* 2>/dev/null || true
+          echo "--- uci-defaults ---"
+          ls -l files/etc/uci-defaults/ 2>/dev/null || echo "(无)"
           echo "--- wireless ---"
           cat files/etc/config/wireless
 
