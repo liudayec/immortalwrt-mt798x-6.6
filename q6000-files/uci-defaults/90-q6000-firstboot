@@ -26,7 +26,7 @@ fi
 
 # --- 3) quickstart 的「无线」菜单：其目标路由为空（上游 bug），默认关闭 ---
 uci -q get quickstart.main >/dev/null 2>&1 || uci set quickstart.main=quickstart
-uci set quickstart.main.wifi_menu='0'
+uci set quickstart.main.wifi_menu='1'
 
 # --- 4) 语言 + 主题 ---
 uci set luci.main.lang='zh_cn'
